@@ -24,9 +24,13 @@ class DrawBox : RenderableEntity, MouseDownHandler, MouseUpHandler, MouseMoveHan
     
     var pointsToDraw : Set<Point> = []
     var linesToDraw : [Lines] = []
+
+    let onlineServer : Server
     
     init(boundingBox:Rect?=nil) {
         self.boundingBox = boundingBox ?? DrawBox.defaultBox
+        onlineServer = Server()
+        print("Id \(onlineServer.localUser.privateId) connected to board")
     }
 
     func clear(canvas:Canvas) {
@@ -34,13 +38,38 @@ class DrawBox : RenderableEntity, MouseDownHandler, MouseUpHandler, MouseMoveHan
         canvas.render(Rectangle(rect:boundingBox, fillMode:.fillAndStroke))
     }
 
+    func drawBoardFromServer(canvas:Canvas) {
+        
+    }
+
+    func updateFromServer(canvas:Canvas) {
+        let linesToDraw = onlineServer.getLocalLineUpdate()
+        if !linesToDraw.isEmpty {
+            for line in linesToDraw {
+                canvas.render(StrokeStyle(color:line.color), FillStyle(color:line.color), LineWidth(width:lineWidth * 2))
+                canvas.render(line.line)
+            }
+        }
+    }
+
     func draw(canvas:Canvas) {
+        canvas.render(StrokeStyle(color:color), FillStyle(color:color), LineWidth(width:lineWidth * 2))
+        var linesToUpload : [ServerLine] = []
+        if !linesToDraw.isEmpty {
+            for line in linesToDraw {
+                canvas.render(line)
+                linesToUpload.append(ServerLine(line:line, color:color, user:onlineServer.localUser))
+            }
+        }
+        linesToDraw = []
+        Server.uploadLines(lines:linesToUpload)
         
     }
 
     override func setup(canvasSize:Size, canvas:Canvas) {
         print("SETUP")
         clear(canvas:canvas)
+        
         dispatcher.registerMouseDownHandler(handler:self)
         dispatcher.registerMouseUpHandler(handler:self)
         dispatcher.registerMouseMoveHandler(handler:self)
@@ -85,23 +114,13 @@ class DrawBox : RenderableEntity, MouseDownHandler, MouseUpHandler, MouseMoveHan
     override func render(canvas:Canvas) {
 
         if clearQueued {
-            clear(canvas:canvas)
+        //    clear(canvas:canvas)
             clearQueued = false
         }
+
+        draw(canvas:canvas)
+        updateFromServer(canvas:canvas)
         
-        canvas.render(StrokeStyle(color:color), FillStyle(color:color), LineWidth(width:lineWidth * 2))
-        if !linesToDraw.isEmpty {
-            for line in linesToDraw {
-                canvas.render(line)
-            }
-        }
-        linesToDraw = []
-        if !pointsToDraw.isEmpty {
-            for point in pointsToDraw {
-                let rect = Rect(topLeft:point, size:Size(width:lineWidth, height:lineWidth))
-                canvas.render(Rectangle(rect:rect, fillMode:.fill))
-            }
-        }
-        pointsToDraw = []
+        
     }
 }
